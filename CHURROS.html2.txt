@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHURROS SHINAI?</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; color: #fff; font-family: 'Noto Sans JP', sans-serif; }
+  .wrapper { display: flex; width: 100vw; height: 100vh; }
+  .left { flex: 0 0 50%; height: 100vh; overflow: hidden; background: #111; }
+  video { width: 100%; height: 100%; object-fit: cover; }
+  .right { flex: 0 0 50%; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6vh 4vw; gap: 1.5vh; border-left: 1px solid #1e1e1e; }
+  .store-text { font-family: 'Bebas Neue', sans-serif; font-size: 4vw; color: #4ecdc4; letter-spacing: 0.08em; line-height: 1.1; text-align: center; }
+  .divider { width: 80%; height: 1px; background: linear-gradient(to right, transparent, #4ecdc4, transparent); }
+  .ready-label { font-family: 'Bebas Neue', sans-serif; font-size: 4vw; color: #4ecdc4; letter-spacing: 0.3em; }
+  .number-display { font-family: 'Bebas Neue', sans-serif; font-size: 22vw; color: #fff; line-height: 1; text-shadow: 0 0 80px rgba(78,205,196,0.3); transition: all 0.4s ease; text-align: center; }
+  .number-display.waiting { font-size: 6vw; color: #333; letter-spacing: 0.2em; }
+  .message { text-align: center; }
+  .message-en { font-size: 1.8vw; color: #fff; font-weight: 400; letter-spacing: 0.05em; margin-bottom: 0.5vh; }
+  .message-ja { font-size: 1.6vw; color: #4ecdc4; font-weight: 700; line-height: 1.8; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.5} }
+  .ready-label.active { animation: pulse 2s ease infinite; }
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
+  .overlay-text { font-family: 'Bebas Neue', sans-serif; font-size: 3vw; color: #4ecdc4; letter-spacing: 0.2em; margin-bottom: 2vh; }
+  .overlay-sub { font-size: 1.5vw; color: #888; letter-spacing: 0.1em; }
+  .overlay.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="startSystem()">
+  <div class="overlay-text">タップして開始</div>
+  <div class="overlay-sub">Tap to Start</div>
+</div>
+
+<div class="wrapper">
+  <div class="left">
+    <video autoplay muted loop playsinline>
+      <source src="https://fuuth.github.io/churosu2/churosu2.mp4" type="video/mp4">
+    </video>
+  </div>
+  <div class="right">
+    <div class="store-text">CHURROS SHINAI?</div>
+    <div class="divider"></div>
+    <div class="ready-label" id="readyLabel">READY!</div>
+    <div class="number-display waiting" id="numberDisplay">- - -</div>
+    <div class="divider"></div>
+    <div class="message">
+      <div class="message-en">Please pick up your order</div>
+      <div class="message-ja">ご注文のお客様はお受け取りください</div>
+      <div class="message-ja">请点餐的顾客领取餐品</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxYFS3VWN-Oee6mZT4-InzqfM4xH6XvGV97t2_RbBI-afCcbflRYWveO2Gx_R12tLwH/exec?page=getdata';
+
+  let currentNumber = -1;
+  let audioCtx = null;
+
+  function startSystem() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    document.getElementById('overlay').classList.add('hidden');
+    playChime();
+    fetchData(false);
+    setInterval(() => fetchData(true), 3000);
+  }
+
+  function resumeAudio() {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function showNumber(number, withChime) {
+    const numEl = document.getElementById('numberDisplay');
+    const readyEl = document.getElementById('readyLabel');
+    if (number === 0) {
+      numEl.textContent = '- - -';
+      numEl.classList.add('waiting');
+      readyEl.classList.remove('active');
+      currentNumber = 0;
+    } else {
+      numEl.textContent = String(number).padStart(3, '0');
+      numEl.classList.remove('waiting');
+      readyEl.classList.add('active');
+      if (withChime) playChime();
+    }
+  }
+
+  function fetchData(withChime) {
+    resumeAudio();
+    fetch(GAS_URL)
+      .then(res => res.json())
+      .then(data => {
+        if (currentNumber === -1) {
+          currentNumber = data.number;
+          showNumber(currentNumber, false);
+        } else if (data.number !== currentNumber) {
+          currentNumber = data.number;
+          showNumber(currentNumber, withChime && currentNumber !== 0);
+        }
+      })
+      .catch(err => console.log('fetch error:', err));
+  }
+
+  function playChime() {
+    if (!audioCtx) return;
+    resumeAudio();
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime + i * 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.2 + 0.4);
+      osc.start(audioCtx.currentTime + i * 0.2);
+      osc.stop(audioCtx.currentTime + i * 0.2 + 0.4);
+    });
+  }
+</script>
+</body>
+</html>
